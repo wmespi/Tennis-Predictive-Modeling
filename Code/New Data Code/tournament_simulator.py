@@ -1,4 +1,3 @@
-from match_simulator import tennisPlayer,simulate_match
 import pandas as pd
 
 class tournamentBracket:
@@ -24,7 +23,7 @@ class tournamentBracket:
 
 
 
-file_path = '/Users/William/Documents/Tennis-Predictive-Modeling/New Match Data/atp_matches_1990.csv'
+file_path = '/New Match Data/atp_matches_1990.csv'
 tourn = tournamentBracket('Australian Open',1990,128)
 tourn.get_matches(file_path)
 

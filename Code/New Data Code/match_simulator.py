@@ -209,27 +209,45 @@ def simulate_match(player1,player2,sets_to_win):
             server = player1
             returner = player2
 
-    print(sets)
-    print(set_scores)
-    print(match_winner,'won the match')
+    # print(sets)
+    # print(set_scores)
+    # print(match_winner,'won the match')
     return match_winner
 
-players_info = [
-    {'name':'R. Federer','age':38,'fsp':.76,'fswp':.85,'ssp':.99,'sswp':.6},
-    {'name': 'R. Nadal', 'age': 34, 'fsp': .72, 'fswp': .8, 'ssp': .99, 'sswp': .63}
-    ]
 
-tennis_players = []
-for i in players_info:
-    name = i['name']
-    age = i['age']
-    fsp = i['fsp']
-    fswp = i['fswp']
-    ssp = i['ssp']
-    sswp = i['sswp']
 
-    player = tennisPlayer(name,age,fsp,fswp,ssp,sswp)
-    tennis_players.append(player)
-
-simulate_match(tennis_players[0],tennis_players[1],3)
-
+# players_info = [
+#     {'name':'R. Federer','age':38,'fsp':.65,'fswp':.91,'ssp':1,'sswp':.6},
+#     {'name': 'R. Nadal', 'age': 34, 'fsp': .72, 'fswp': .85, 'ssp': 1, 'sswp': .635}
+#     ]
+#
+# tennis_players = []
+# for i in players_info:
+#     name = i['name']
+#     age = i['age']
+#     fsp = i['fsp']
+#     fswp = i['fswp']
+#     ssp = i['ssp']
+#     sswp = i['sswp']
+#
+#     player = tennisPlayer(name,age,fsp,fswp,ssp,sswp)
+#     tennis_players.append(player)
+#
+# winners = []
+# for i in range(1000):
+#     winner = simulate_match(tennis_players[0],tennis_players[1],3)
+#     if winner == tennis_players[0].name:
+#         winNum = 0
+#     if winner == tennis_players[1].name:
+#         winNum = 1
+#     winners.append(winNum)
+#
+# pred = np.mean(winners)
+# if pred <= .5:
+#     print(pred)
+#     print(tennis_players[0].name,'won the match')
+# else:
+#     print(pred)
+#     print(tennis_players[1].name, 'won the match')
+#
+#
