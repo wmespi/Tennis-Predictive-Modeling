@@ -1,19 +1,39 @@
 import pandas as pd
 
-class tournamentBracket:
+class tournament:
 
-    def __init__(self, name, year, num_players):
+    def __init__(self, name, year,file_path):
         self.name = name
         self.year = year
-        self.num_players = num_players
+
+        self.matches = self.get_matches(file_path)
+        self.num_players = self.get_num_players(self.matches)
+
+        self.bracket = self.make_bracket(self.num_players)
 
     def get_matches(self, file_path):
         matches = pd.read_csv(file_path)
         matches['year'] = matches['tourney_date'].astype(str).str[0:4]
         matches = matches[(matches['tourney_name'] == self.name)  & (matches['year'] == str(self.year))]
-        first_round = self.get_first_round(matches)
-        print(len(matches))
-        print(len(first_round))
+        return matches
+
+    def get_num_players(self,matches):
+        num_players = int(matches['draw_size'].max())
+        return num_players
+
+    def make_bracket(self,num_players):
+        bracket = {}
+        round = 1
+        matches_p_round = int(num_players/2)
+        while matches_p_round >= 1:
+            round_string = 'Round ' + str(round)
+            bracket[round_string] = [() for i in range(matches_p_round)]
+            matches_p_round = int(matches_p_round/2)
+            round += 1
+        bracket['Winner'] = ()
+
+        return bracket
+
 
     def get_first_round(self,matches):
         round_string = 'R'+str(self.num_players)
@@ -23,9 +43,8 @@ class tournamentBracket:
 
 
 
-file_path = '/New Match Data/atp_matches_1990.csv'
-tourn = tournamentBracket('Australian Open',1990,128)
-tourn.get_matches(file_path)
+file_path = '/Users/William/Documents/Tennis-Predictive-Modeling/New Match Data/atp_matches_1990.csv'
+tourn = tournament('Australian Open',1990,file_path)
 
 
 # players_info = [
