@@ -5,10 +5,9 @@ import numpy as np
 ## includes player statistics
 class tennisPlayer:
 
-    def __init__(self,name,age,fsp,fswp,ssp,sswp):
+    def __init__(self,name,fsp,fswp,ssp,sswp):
         ## basic demographic characteristics
         self.name = name
-        self.age = age
         # self.rank = rank
         # self.elo = elo
         # self.top10 = top10
@@ -195,11 +194,13 @@ def simulate_match(player1,player2,sets_to_win):
         sets[set_winner] += 1
         set_scores.append(set_score)
 
-        if sets[p1] >= 3:
+        if sets[p1] >= sets_to_win:
             match_winner = p1
+            match_loser = p2
             break
-        if sets[p2] >= 3:
+        if sets[p2] >= sets_to_win:
             match_winner = p2
+            match_loser = p1
             break
 
         if server == player1:
@@ -209,10 +210,8 @@ def simulate_match(player1,player2,sets_to_win):
             server = player1
             returner = player2
 
-    # print(sets)
-    # print(set_scores)
-    # print(match_winner,'won the match')
-    return match_winner
+    #print(match_winner,'won the match')
+    return match_winner, match_loser
 
 
 
@@ -230,7 +229,7 @@ def simulate_match(player1,player2,sets_to_win):
 #     ssp = i['ssp']
 #     sswp = i['sswp']
 #
-#     player = tennisPlayer(name,age,fsp,fswp,ssp,sswp)
+#     player = tennisPlayer(name,fsp,fswp,ssp,sswp)
 #     tennis_players.append(player)
 #
 # winners = []
@@ -249,5 +248,5 @@ def simulate_match(player1,player2,sets_to_win):
 # else:
 #     print(pred)
 #     print(tennis_players[1].name, 'won the match')
-#
-#
+
+

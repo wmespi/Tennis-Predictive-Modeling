@@ -1,18 +1,23 @@
 import pandas as pd
+from match_simulator import tennisPlayer, simulate_match
+import math
+import numpy as np
+from collections import OrderedDict
 
 class tournament:
 
-    def __init__(self, name, year,file_path):
+    def __init__(self, name, year,data):
         self.name = name
         self.year = year
-
-        self.matches = self.get_matches(file_path)
+        self.matches = self.get_matches(data)
         self.num_players = self.get_num_players(self.matches)
+        self.empty_bracket,self.rounds = self.make_bracket(self.num_players,self.matches)
+        self.results = self.get_results(self.matches,self.empty_bracket,self.rounds)
+        self.players = self.get_players(self.matches)
+        self.surface = self.matches['surface'].iloc[0]
 
-        self.bracket = self.make_bracket(self.num_players)
-
-    def get_matches(self, file_path):
-        matches = pd.read_csv(file_path)
+    def get_matches(self, data):
+        matches = data.copy()
         matches['year'] = matches['tourney_date'].astype(str).str[0:4]
         matches = matches[(matches['tourney_name'] == self.name)  & (matches['year'] == str(self.year))]
         return matches
@@ -21,48 +26,213 @@ class tournament:
         num_players = int(matches['draw_size'].max())
         return num_players
 
-    def make_bracket(self,num_players):
+    def make_bracket(self,num_players,matches):
         bracket = {}
-        round = 1
+        rounds = list(matches['round'].unique())
+        rounds.append('W')
         matches_p_round = int(num_players/2)
-        while matches_p_round >= 1:
-            round_string = 'Round ' + str(round)
-            bracket[round_string] = [() for i in range(matches_p_round)]
+
+        for i in range(len(rounds)):
+            round = rounds[i]
+            bracket[round] = [[] for i in range(matches_p_round)]
             matches_p_round = int(matches_p_round/2)
-            round += 1
-        bracket['Winner'] = ()
 
-        return bracket
+        return bracket, rounds
+
+    def get_results(self,matches,bracket,rounds):
+        results = bracket.copy()
+
+        for i, round in enumerate(rounds):
+            round_matches = matches[matches['round'] == round]
+            players = list(zip(round_matches.winner_name,round_matches.loser_name))
+            results[round] = players
+
+            if round == 'W':
+                results[round] = results[rounds[i-1]][0][0]
+
+        return results
+
+    def get_players(self,matches):
+        unique_winners = list(matches['winner_name'].unique())
+        unique_losers = list(matches['loser_name'].unique())
+        players = unique_winners + unique_losers
+        players = list(set(players))
+        return players
 
 
-    def get_first_round(self,matches):
-        round_string = 'R'+str(self.num_players)
-        first_round = matches[(matches['tourney_name'] == self.name) & (matches['round'] == round_string) & (matches['year'] == str(self.year))]
-        return first_round
+    # def get_first_round(self,matches):
+    #     round_string = 'R'+str(self.num_players)
+    #     first_round = matches[(matches['tourney_name'] == self.name) & (matches['round'] == round_string) & (matches['year'] == str(self.year))]
+    #     return first_round
+
+def simulate_tournament(tournament_name,year,file_path,iteration):
+    data = pd.read_csv(file_path)
+
+    ## add serving stats
+    data['w_2ndsvpt'] = data['w_svpt'] - data['w_1stIn']
+    data['w_2ndIn'] = data['w_2ndsvpt'] - data['w_df']
+    data['l_2ndsvpt'] = data['l_svpt'] - data['l_1stIn']
+    data['l_2ndIn'] = data['l_2ndsvpt'] - data['l_df']
+
+    tourn = tournament(tournament_name,year,data)
+    first_to = math.ceil(tourn.matches['best_of'].iloc[0]/2)
+    surface = tourn.surface
+    rounds = tourn.rounds
+
+    ## limit data for calculating metrics to be before the current tournament
+    tourn_index = list(tourn.matches.index.values.tolist())[0]
+    history = data.copy()
+    history = history[history['surface'] == surface]
+    history = history.iloc[0:tourn_index]
+
+    ## create simulated bracket
+    sim_bracket = tourn.empty_bracket
+    sim_bracket[tourn.rounds[0]] = tourn.results[tourn.rounds[0]]
+
+    ## create player objects for everyone in the tournament
+    players = {}
+    pwins = {}
+    plosses = {}
+    for name in tourn.players:
+        fsp, fswp, ssp, sswp = get_metrics(name,history)
+        players[name] = tennisPlayer(name,fsp,fswp,ssp,sswp)
+        pwins[name] = 0
+        plosses[name] = 0
+
+    ## initiate first round match simulation
+    # print(tourn.name,'Iteration:',iteration)
+    for i,round_name in enumerate(rounds):
+        if round_name == rounds[0]:
+            round = tourn.results[round_name]
+            winners, losers = simulate_round(round, players, first_to)
+            sim_bracket = update_bracket(winners, tourn.results,rounds,i)
+        elif round_name == rounds[len(tourn.rounds)-1]:
+            t_winner = winners[0]
+            sim_bracket[round_name] = t_winner
+            # print('Tournament Final:',sim_bracket[rounds[i-1]])
+            # print('Tournament Winner:',sim_bracket[round_name])
+            break
+        else:
+            round = sim_bracket[round_name]
+            winners, losers = simulate_round(round, players, first_to)
+            sim_bracket = update_bracket(winners, sim_bracket,rounds,i)
+
+        for winner in winners:
+            pwins[winner] += 1
+        for loser in losers:
+            plosses[loser] += 1
+
+    return sim_bracket,players,t_winner,pwins,plosses
 
 
+def update_bracket(winners,bracket,rounds,i):
+    num_winners = len(winners)
+    num_matches = int(num_winners/2)
+    next_round = rounds[i+1]
+
+    for match in range(num_matches):
+        bracket[next_round][match] = (winners[2*match],winners[2*match+1])
+
+    return bracket
 
 
-file_path = '/Users/William/Documents/Tennis-Predictive-Modeling/New Match Data/atp_matches_1990.csv'
-tourn = tournament('Australian Open',1990,file_path)
+def simulate_round(round,players,first_to):
+    winners = []
+    losers = []
+    for match in round:
+        player1 = players[match[0]]
+        player2 = players[match[1]]
+        match_winner,match_loser = simulate_match(player1,player2,first_to)
+        winners.append(match_winner)
+        losers.append(match_loser)
+    #     if match_winner == player1.name:
+    #         count.append(1)
+    #     else:
+    #         count.append(0)
+    # print(sum(count)/len(count))
+    return winners,losers
 
 
-# players_info = [
-#     {'name':'R. Federer','age':38,'fsp':.65,'fswp':.91,'ssp':1,'sswp':.6},
-#     {'name': 'R. Nadal', 'age': 34, 'fsp': .72, 'fswp': .85, 'ssp': 1, 'sswp': .635}
-#     ]
-#
-# tennis_players = []
-# for i in players_info:
-#     name = i['name']
-#     age = i['age']
-#     fsp = i['fsp']
-#     fswp = i['fswp']
-#     ssp = i['ssp']
-#     sswp = i['sswp']
-#
-#     player = tennisPlayer(name,age,fsp,fswp,ssp,sswp)
-#     tennis_players.append(player)
-#
-# winner = simulate_match(tennis_players[0],tennis_players[1],3)
-# print(winner)
+def get_metrics(player,history):
+
+    ## get metrics for matches player won
+    player_history_w = history[(history['winner_name'] == player)]
+    w_svpt = player_history_w['w_svpt'].sum()
+    w_1stIn = player_history_w['w_1stIn'].sum()
+    w_1stWon = player_history_w['w_1stWon'].sum()
+    w_2ndsvpt = player_history_w['w_2ndsvpt'].sum()
+    w_2ndIn = player_history_w['w_2ndIn'].sum()
+    w_2ndWon = player_history_w['w_2ndWon'].sum()
+
+
+    ## get metrics for matches player lost
+    player_history_l = history[(history['loser_name'] == player)]
+    l_svpt = player_history_l['l_svpt'].sum()
+    l_1stIn = player_history_l['l_1stIn'].sum()
+    l_1stWon = player_history_l['l_1stWon'].sum()
+    l_2ndsvpt = player_history_l['l_2ndsvpt'].sum()
+    l_2ndIn = player_history_l['l_2ndIn'].sum()
+    l_2ndWon = player_history_l['l_2ndWon'].sum()
+
+    total_svpt = w_svpt + l_svpt
+    total_1stIn = w_1stIn + l_1stIn
+    total_1stWon = w_1stWon + l_1stWon
+    total_2ndsvpt = w_2ndsvpt + l_2ndsvpt
+    total_2ndIn = w_2ndIn + l_2ndIn
+    total_2ndWon = w_2ndWon + l_2ndWon
+
+    if len(player_history_w) + len(player_history_l) == 0:
+        print('new player alert')
+        fsp = .6
+        fswp = .7
+        ssp = .9
+        sswp = .5
+    else:
+        fsp = total_1stIn / total_svpt
+        fswp = total_1stWon / total_1stIn
+        ssp = total_2ndIn / total_2ndsvpt
+        sswp = total_2ndWon / total_2ndIn
+
+    return fsp, fswp, ssp, sswp
+
+
+def main(tournament_name,year,file_path):
+    p_titles = {}
+    p_wins = {}
+    n_runs = 100
+
+    for i in range(0,n_runs):
+        sim_bracket,players,t_winner,pwins,plosses = simulate_tournament(tournament_name,year,file_path,i)
+        for player in players.keys():
+            if i == 0:
+                p_wins[player] = [pwins[player]]
+                if player != t_winner:
+                    p_titles[player] = [0]
+                else:
+                    p_titles[player] = [1]
+            else:
+                p_wins[player].append(pwins[player])
+                if player != t_winner:
+                    p_titles[player].append(0)
+                else:
+                    p_titles[player].append(1)
+            if i == n_runs-1:
+                p_wins[player] = np.mean(p_wins[player])
+                p_titles[player] = np.mean(p_titles[player])
+
+    print('Average Number of Matches Won:')
+    for w in sorted(p_wins, key=p_wins.get, reverse=True):
+        if p_wins[w] <= 4:
+            continue
+        print(w, p_wins[w])
+    print('Percentage of Titles Won:')
+    for w in sorted(p_titles, key=p_titles.get, reverse=True):
+        if p_titles[w] <= .25:
+            continue
+        print(w, round(p_titles[w]*100,2))
+
+
+tournament_name = 'Wimbledon'
+year = 2019
+file_path = '/Users/William/Documents/Tennis-Predictive-Modeling/Cleaned Data/New Match Data Cleaned.csv'
+main(tournament_name,year,file_path)
