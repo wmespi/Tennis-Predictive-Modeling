@@ -2,7 +2,7 @@ import pandas as pd
 from match_simulator import tennisPlayer, simulate_match
 import math
 import numpy as np
-from collections import OrderedDict
+np.random.seed(5)
 
 class tournament:
 
@@ -20,6 +20,8 @@ class tournament:
         matches = data.copy()
         matches['year'] = matches['tourney_date'].astype(str).str[0:4]
         matches = matches[(matches['tourney_name'] == self.name)  & (matches['year'] == str(self.year))]
+        test = matches[matches['round'] == 'R128']
+        assert len(test) == 64, 'First round from data source has an encoding error'
         return matches
 
     def get_num_players(self,matches):
@@ -66,6 +68,7 @@ class tournament:
     #     return first_round
 
 def simulate_tournament(tournament_name,year,file_path,iteration):
+    ## need to make this data preprocessing and reading step outside of the main loop
     data = pd.read_csv(file_path)
 
     ## add serving stats
@@ -73,6 +76,8 @@ def simulate_tournament(tournament_name,year,file_path,iteration):
     data['w_2ndIn'] = data['w_2ndsvpt'] - data['w_df']
     data['l_2ndsvpt'] = data['l_svpt'] - data['l_1stIn']
     data['l_2ndIn'] = data['l_2ndsvpt'] - data['l_df']
+
+    ## need to calculate returning stats
 
     tourn = tournament(tournament_name,year,data)
     first_to = math.ceil(tourn.matches['best_of'].iloc[0]/2)
@@ -82,7 +87,7 @@ def simulate_tournament(tournament_name,year,file_path,iteration):
     ## limit data for calculating metrics to be before the current tournament
     tourn_index = list(tourn.matches.index.values.tolist())[0]
     history = data.copy()
-    history = history[history['surface'] == surface]
+    history = history[(history['surface'] == surface) & (history['tourney_name'] == tournament_name)]
     history = history.iloc[0:tourn_index]
 
     ## create simulated bracket
@@ -99,12 +104,17 @@ def simulate_tournament(tournament_name,year,file_path,iteration):
         pwins[name] = 0
         plosses[name] = 0
 
+    players_per_round = []
+    for round_name in rounds:
+        num_players = len(tourn.matches[tourn.matches['round'] == round_name])*2
+        players_per_round.append(num_players)
+
     ## initiate first round match simulation
-    # print(tourn.name,'Iteration:',iteration)
+    print(tourn.name,'Iteration:',iteration)
     for i,round_name in enumerate(rounds):
         if round_name == rounds[0]:
             round = tourn.results[round_name]
-            winners, losers = simulate_round(round, players, first_to)
+            winners, losers = simulate_round(round,round_name, players, first_to)
             sim_bracket = update_bracket(winners, tourn.results,rounds,i)
         elif round_name == rounds[len(tourn.rounds)-1]:
             t_winner = winners[0]
@@ -114,7 +124,9 @@ def simulate_tournament(tournament_name,year,file_path,iteration):
             break
         else:
             round = sim_bracket[round_name]
-            winners, losers = simulate_round(round, players, first_to)
+            winners, losers = simulate_round(round,round_name, players, first_to)
+            assert len(winners) == len(losers), 'Unequal number of winners and losers'
+            assert len(winners) == int(players_per_round[i]/2), 'The number of winners is not equal to what it should be for this round'
             sim_bracket = update_bracket(winners, sim_bracket,rounds,i)
 
         for winner in winners:
@@ -136,12 +148,15 @@ def update_bracket(winners,bracket,rounds,i):
     return bracket
 
 
-def simulate_round(round,players,first_to):
+def simulate_round(round,round_name,players,first_to):
     winners = []
     losers = []
     for match in round:
         player1 = players[match[0]]
         player2 = players[match[1]]
+        if player1 == player2:
+            print(round)
+            print(round_name)
         match_winner,match_loser = simulate_match(player1,player2,first_to)
         winners.append(match_winner)
         losers.append(match_loser)
@@ -150,6 +165,10 @@ def simulate_round(round,players,first_to):
     #     else:
     #         count.append(0)
     # print(sum(count)/len(count))
+
+    winners = list(set(winners))
+    losers = list(set(losers))
+
     return winners,losers
 
 
@@ -181,6 +200,8 @@ def get_metrics(player,history):
     total_2ndIn = w_2ndIn + l_2ndIn
     total_2ndWon = w_2ndWon + l_2ndWon
 
+    ## if there are no matches for a player
+    ## establish baseline percentages
     if len(player_history_w) + len(player_history_l) == 0:
         print('new player alert')
         fsp = .6
@@ -199,7 +220,7 @@ def get_metrics(player,history):
 def main(tournament_name,year,file_path):
     p_titles = {}
     p_wins = {}
-    n_runs = 100
+    n_runs = 10
 
     for i in range(0,n_runs):
         sim_bracket,players,t_winner,pwins,plosses = simulate_tournament(tournament_name,year,file_path,i)
@@ -219,20 +240,22 @@ def main(tournament_name,year,file_path):
             if i == n_runs-1:
                 p_wins[player] = np.mean(p_wins[player])
                 p_titles[player] = np.mean(p_titles[player])
-
-    print('Average Number of Matches Won:')
-    for w in sorted(p_wins, key=p_wins.get, reverse=True):
-        if p_wins[w] <= 4:
-            continue
-        print(w, p_wins[w])
+    print(tournament_name,year)
+    print('Number of Tournament Simulations:', n_runs)
     print('Percentage of Titles Won:')
     for w in sorted(p_titles, key=p_titles.get, reverse=True):
-        if p_titles[w] <= .25:
+        if p_titles[w] < .10:
             continue
         print(w, round(p_titles[w]*100,2))
+    print('~~~~~~~~~~~~~~~~~~~~~~~~~~~~~')
+    print('Average Number of Matches Won:')
+    for w in sorted(p_wins, key=p_wins.get, reverse=True):
+        if p_wins[w] < 3:
+            continue
+        print(w, p_wins[w])
 
 
-tournament_name = 'Wimbledon'
-year = 2019
+tournament_name = 'Roland Garros'
+year = 2018
 file_path = '/Users/William/Documents/Tennis-Predictive-Modeling/Cleaned Data/New Match Data Cleaned.csv'
 main(tournament_name,year,file_path)

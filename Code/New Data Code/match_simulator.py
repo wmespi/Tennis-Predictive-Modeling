@@ -58,6 +58,7 @@ def simulate_point(server,returner):
 def simulate_game(server,returner):
     s_name = server.name
     r_name = returner.name
+
     points = {s_name: 0, r_name: 0}
     score = {s_name: 0, r_name: 0}
     score_dict = {0:0,1:15,2:30,3:40,4:60}
@@ -137,6 +138,7 @@ def simulate_normal_set(player1,player2,server,returner):
 
     p1 = player1.name
     p2 = player2.name
+
     games = {p1: 0, p2: 0}
 
     while True:
