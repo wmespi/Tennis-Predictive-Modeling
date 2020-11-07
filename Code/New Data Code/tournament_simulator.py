@@ -20,7 +20,13 @@ class tournament:
         matches = data.copy()
         matches['year'] = matches['tourney_date'].astype(str).str[0:4]
         matches = matches[(matches['tourney_name'] == self.name) & (matches['year'] == str(self.year))]
-        rounds =  list(matches['round'].unique())
+        rounds = list(matches['round'].unique())
+        rounds = list(sorted(rounds, key=lambda x: -len(x)))
+        rounds2 = rounds[len(rounds)-3:len(rounds)]
+        rounds1 = [int(i[1:]) for i in rounds if i not in rounds2]
+        rounds1 = list(sorted(rounds1, key=lambda x: -x))
+        rounds1 = ['R'+str(i) for i in rounds1]
+        rounds = rounds1 + rounds2
         num_rounds = len(rounds)
         num_matches_per_round = [2**(i) for i in range(num_rounds)]
         num_matches_per_round = num_matches_per_round[::-1]
@@ -29,6 +35,7 @@ class tournament:
         for i,round in enumerate(rounds):
             test = len(matches[matches['round'] == round])
             check = num_matches_per_round[i]
+            ## if matches are not sorted properly there will be an error when setting up the bracket
             assert test == check, (round, 'from data source has an encoding error')
         return matches
 
@@ -97,7 +104,7 @@ def simulate_tournament(tournament_name,year,file_path,iteration):
     history = data.copy()
     history = history.dropna()
     history = history.reset_index(drop=True)
-    history = history[(history['surface'] == surface) & (history['tourney_name'] == tournament_name)]
+    history = history[(history['surface'] == surface)]# & (history['tourney_name'] == tournament_name)]
     history = history.iloc[0:tourn_index]
 
     ## create simulated bracket
@@ -105,7 +112,7 @@ def simulate_tournament(tournament_name,year,file_path,iteration):
     sim_bracket[tourn.rounds[0]] = tourn.results[tourn.rounds[0]]
 
     ## get metrics for every player
-    competitors = pd.DataFrame([name for name in tourn.players],columns = ['Player'])
+    competitors = pd.DataFrame([name for name in tourn.players], columns=['Player'])
     competitors['total_1stIn'] = None
     competitors['total_1stWon'] = None
     competitors['total_2ndIn'] = None
@@ -287,7 +294,7 @@ def get_metrics(player,history):
 def main(tournament_name,year,file_path):
     p_titles = {}
     p_wins = {}
-    n_runs = 100
+    n_runs = 30
 
     for i in range(0,n_runs):
         sim_bracket,players,t_winner,pwins,plosses = simulate_tournament(tournament_name,year,file_path,i)
@@ -307,6 +314,7 @@ def main(tournament_name,year,file_path):
             if i == n_runs-1:
                 p_wins[player] = np.mean(p_wins[player])
                 p_titles[player] = np.mean(p_titles[player])
+    print('~~~~~~~~~~~~~~~~~~~~~~')
     print(tournament_name,year)
     print('Number of Tournament Simulations:', n_runs)
     print('Percentage of Titles Won:')
@@ -322,7 +330,7 @@ def main(tournament_name,year,file_path):
         print(w, p_wins[w])
 
 
-tournament_name = 'Wimbledon'
-year = 2016
+tournament_name = 'Australian Open'
+year = 2019
 file_path = '/Users/William/Documents/Tennis-Predictive-Modeling/Cleaned Data/New Match Data Cleaned.csv'
 main(tournament_name,year,file_path)
