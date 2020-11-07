@@ -5,7 +5,7 @@ import numpy as np
 ## includes player statistics
 class tennisPlayer:
 
-    def __init__(self,name,fsp,fswp,ssp,sswp):
+    def __init__(self,name,fsp,fswp,ssp,sswp,fsrwp,ssrwp,afswp,asswp,afsrwp,assrwp):
         ## basic demographic characteristics
         self.name = name
         # self.rank = rank
@@ -16,19 +16,37 @@ class tennisPlayer:
         self.fswp = fswp
         self.ssp = ssp
         self.sswp = sswp
+        self.fsrwp = fsrwp
+        self.ssrwp = ssrwp
+        self.afswp = afswp
+        self.asswp = asswp
+        self.afsrwp = afsrwp
+        self.assrwp = assrwp
 
 ## simulate the outcome of a point
 ## server: tennisPlayer object
 ## returner: tennisPlayer object
 def simulate_point(server,returner):
+    afswp = server.afswp
+    asswp = server.asswp
+    afsrwp = server.afsrwp
+    assrwp =server.assrwp
+
     p_fs = server.fsp
     U1F = np.random.uniform()
     p_ss = server.ssp
     U1S = np.random.uniform()
 
+    p_wfs0 = server.fswp
+    r_wfsr0 = returner.fsrwp
+    p_wfs = p_wfs0 + (p_wfs0 - afswp) - (r_wfsr0 - afsrwp)
+
+    p_wss0 = server.sswp
+    r_wssr0 = returner.ssrwp
+    p_wss = p_wss0 + (p_wss0 - asswp) - (r_wssr0 - assrwp)
+
     ## probability of making the first serve
     if U1F <= p_fs:
-        p_wfs = server.fswp
         U2F = np.random.uniform()
 
         ## probability of winning the point on the first serve
@@ -38,7 +56,6 @@ def simulate_point(server,returner):
             winner = returner.name
     ## probability of making second serve
     elif U1S <= p_ss:
-        p_wss = server.sswp
         U2S = np.random.uniform()
 
         ## probability of winning point on second serve

@@ -94,13 +94,43 @@ def simulate_tournament(tournament_name,year,file_path,iteration):
     sim_bracket = tourn.empty_bracket
     sim_bracket[tourn.rounds[0]] = tourn.results[tourn.rounds[0]]
 
+    ## get metrics for every player
+
+    competitors = pd.DataFrame([name for name in tourn.players],columns = ['Player'])
+    competitors['total_1stIn'] = None
+    competitors['total_1stWon'] = None
+    competitors['total_2ndIn'] = None
+    competitors['total_2ndWon'] = None
+    competitors['total_1stRIn'] = None
+    competitors['total_1stRWon'] = None
+    competitors['total_2ndRIn'] = None
+    competitors['total_2ndRWon'] = None
+    for i, player in enumerate(tourn.players):
+        # serving
+        competitors['total_1stIn'].iloc[i] = history[history['winner_name'] == player].w_1stIn.sum() + history[history['loser_name'] == player].l_1stIn.sum()
+        competitors['total_1stWon'].iloc[i] = history[history['winner_name'] == player].w_1stWon.sum() + history[history['loser_name'] == player].l_1stWon.sum()
+        competitors['total_2ndIn'].iloc[i] = history[history['winner_name'] == player].w_2ndIn.sum() + history[history['loser_name'] == player].l_2ndIn.sum()
+        competitors['total_2ndWon'].iloc[i] = history[history['winner_name'] == player].w_2ndWon.sum() + history[history['loser_name'] == player].l_2ndWon.sum()
+
+        # returning
+        competitors['total_1stRIn'].iloc[i] = history[history['winner_name'] == player].l_1stIn.sum() + history[history['loser_name'] == player].w_1stIn.sum()
+        competitors['total_1stRWon'].iloc[i] = history[history['winner_name'] == player].l_1stIn.sum() - history[history['winner_name'] == player].l_1stWon.sum() + history[history['loser_name'] == player].w_1stIn.sum() - history[history['loser_name'] == player].w_1stWon.sum()
+        competitors['total_2ndRIn'].iloc[i] = history[history['winner_name'] == player].l_2ndIn.sum() + history[history['loser_name'] == player].w_2ndIn.sum()
+        competitors['total_2ndRWon'].iloc[i] = history[history['winner_name'] == player].l_2ndIn.sum() - history[history['winner_name'] == player].l_2ndWon.sum() + history[history['loser_name'] == player].w_2ndIn.sum() - history[history['loser_name'] == player].w_2ndWon.sum()
+
+    afswp = competitors['total_1stWon'].sum() / competitors['total_1stIn'].sum()
+    asswp = competitors['total_2ndWon'].sum() / competitors['total_2ndIn'].sum()
+    afsrwp = competitors['total_1stRWon'].sum() / competitors['total_1stRIn'].sum()
+    assrwp = competitors['total_2ndRWon'].sum() / competitors['total_2ndRIn'].sum()
+
     ## create player objects for everyone in the tournament
     players = {}
     pwins = {}
     plosses = {}
     for name in tourn.players:
-        fsp, fswp, ssp, sswp = get_metrics(name,history)
-        players[name] = tennisPlayer(name,fsp,fswp,ssp,sswp)
+        fsp, fswp, ssp, sswp, fsrwp, ssrwp = get_metrics(name,history)
+        players[name] = tennisPlayer(name,fsp, fswp, ssp, sswp, fsrwp, ssrwp, afswp, asswp, afsrwp, assrwp)
+        ## basic demographic characteristics)
         pwins[name] = 0
         plosses[name] = 0
 
@@ -174,8 +204,10 @@ def simulate_round(round,round_name,players,first_to):
 
 def get_metrics(player,history):
 
-    ## get metrics for matches player won
+    ## get matches player won
     player_history_w = history[(history['winner_name'] == player)]
+
+    ## get serving metrics for matches won
     w_svpt = player_history_w['w_svpt'].sum()
     w_1stIn = player_history_w['w_1stIn'].sum()
     w_1stWon = player_history_w['w_1stWon'].sum()
@@ -183,9 +215,16 @@ def get_metrics(player,history):
     w_2ndIn = player_history_w['w_2ndIn'].sum()
     w_2ndWon = player_history_w['w_2ndWon'].sum()
 
+    ## get returning metrics for matches won
+    l_R1stIn = player_history_w['l_1stIn'].sum()
+    l_R1stWon = player_history_w['l_1stWon'].sum()
+    l_R2ndIn = player_history_w['l_2ndIn'].sum()
+    l_R2ndWon = player_history_w['l_2ndWon'].sum()
 
-    ## get metrics for matches player lost
+    ## get matches lost
     player_history_l = history[(history['loser_name'] == player)]
+
+    ## get serving metrics for matches player lost
     l_svpt = player_history_l['l_svpt'].sum()
     l_1stIn = player_history_l['l_1stIn'].sum()
     l_1stWon = player_history_l['l_1stWon'].sum()
@@ -193,12 +232,26 @@ def get_metrics(player,history):
     l_2ndIn = player_history_l['l_2ndIn'].sum()
     l_2ndWon = player_history_l['l_2ndWon'].sum()
 
+    ## get returning metrics for matches player lost
+    w_R1stIn = player_history_l['w_1stIn'].sum()
+    w_R1stWon = player_history_l['w_1stWon'].sum()
+    w_R2ndIn = player_history_l['w_2ndIn'].sum()
+    w_R2ndWon = player_history_l['w_2ndWon'].sum()
+
+    ## combined serving metrics
     total_svpt = w_svpt + l_svpt
     total_1stIn = w_1stIn + l_1stIn
     total_1stWon = w_1stWon + l_1stWon
     total_2ndsvpt = w_2ndsvpt + l_2ndsvpt
     total_2ndIn = w_2ndIn + l_2ndIn
     total_2ndWon = w_2ndWon + l_2ndWon
+
+    ## combined returning metrics
+    total_R1stIn = w_R1stIn + l_R1stIn
+    total_R1stWon = w_R1stWon + l_R1stWon
+    total_R2ndIn = w_R2ndIn + l_R2ndIn
+    total_R2ndWon = w_R2ndWon + l_R2ndWon
+
 
     ## if there are no matches for a player
     ## establish baseline percentages
@@ -209,18 +262,23 @@ def get_metrics(player,history):
         ssp = .9
         sswp = .5
     else:
+        ## serve stats
         fsp = total_1stIn / total_svpt
         fswp = total_1stWon / total_1stIn
         ssp = total_2ndIn / total_2ndsvpt
         sswp = total_2ndWon / total_2ndIn
 
-    return fsp, fswp, ssp, sswp
+        ## return stats
+        fsrwp = (total_R1stIn - total_R1stWon) / total_R1stIn
+        ssrwp = (total_R2ndIn - total_R2ndWon) / total_R2ndIn
+
+    return fsp, fswp, ssp, sswp, fsrwp, ssrwp
 
 
 def main(tournament_name,year,file_path):
     p_titles = {}
     p_wins = {}
-    n_runs = 10
+    n_runs = 100
 
     for i in range(0,n_runs):
         sim_bracket,players,t_winner,pwins,plosses = simulate_tournament(tournament_name,year,file_path,i)
@@ -255,7 +313,7 @@ def main(tournament_name,year,file_path):
         print(w, p_wins[w])
 
 
-tournament_name = 'Roland Garros'
-year = 2018
+tournament_name = 'Wimbledon'
+year = 2017
 file_path = '/Users/William/Documents/Tennis-Predictive-Modeling/Cleaned Data/New Match Data Cleaned.csv'
 main(tournament_name,year,file_path)
