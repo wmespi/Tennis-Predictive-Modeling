@@ -183,7 +183,6 @@ def update_bracket(winners,bracket,rounds,i):
 
     for match in range(num_matches):
         bracket[next_round][match] = (winners[2*match], winners[2*match+1])
-        print(bracket[next_round][match])
 
     return bracket
 
