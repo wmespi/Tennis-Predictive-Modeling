@@ -19,9 +19,17 @@ class tournament:
     def get_matches(self, data):
         matches = data.copy()
         matches['year'] = matches['tourney_date'].astype(str).str[0:4]
-        matches = matches[(matches['tourney_name'] == self.name)  & (matches['year'] == str(self.year))]
-        test = matches[matches['round'] == 'R128']
-        assert len(test) == 64, 'First round from data source has an encoding error'
+        matches = matches[(matches['tourney_name'] == self.name) & (matches['year'] == str(self.year))]
+        rounds =  list(matches['round'].unique())
+        num_rounds = len(rounds)
+        num_matches_per_round = [2**(i) for i in range(num_rounds)]
+        num_matches_per_round = num_matches_per_round[::-1]
+
+        ## check for enough matches
+        for i,round in enumerate(rounds):
+            test = len(matches[matches['round'] == round])
+            check = num_matches_per_round[i]
+            assert test == check, (round, 'from data source has an encoding error')
         return matches
 
     def get_num_players(self,matches):
@@ -87,6 +95,8 @@ def simulate_tournament(tournament_name,year,file_path,iteration):
     ## limit data for calculating metrics to be before the current tournament
     tourn_index = list(tourn.matches.index.values.tolist())[0]
     history = data.copy()
+    history = history.dropna()
+    history = history.reset_index(drop=True)
     history = history[(history['surface'] == surface) & (history['tourney_name'] == tournament_name)]
     history = history.iloc[0:tourn_index]
 
@@ -95,7 +105,6 @@ def simulate_tournament(tournament_name,year,file_path,iteration):
     sim_bracket[tourn.rounds[0]] = tourn.results[tourn.rounds[0]]
 
     ## get metrics for every player
-
     competitors = pd.DataFrame([name for name in tourn.players],columns = ['Player'])
     competitors['total_1stIn'] = None
     competitors['total_1stWon'] = None
@@ -173,7 +182,8 @@ def update_bracket(winners,bracket,rounds,i):
     next_round = rounds[i+1]
 
     for match in range(num_matches):
-        bracket[next_round][match] = (winners[2*match],winners[2*match+1])
+        bracket[next_round][match] = (winners[2*match], winners[2*match+1])
+        print(bracket[next_round][match])
 
     return bracket
 
@@ -314,6 +324,6 @@ def main(tournament_name,year,file_path):
 
 
 tournament_name = 'Wimbledon'
-year = 2017
+year = 2016
 file_path = '/Users/William/Documents/Tennis-Predictive-Modeling/Cleaned Data/New Match Data Cleaned.csv'
 main(tournament_name,year,file_path)
